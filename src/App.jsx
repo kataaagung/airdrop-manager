@@ -50,6 +50,8 @@ const CHAINS = {
   Sui:      { color: "from-cyan-400 to-teal-500",   bg: "bg-cyan-500/10",   text: "text-cyan-400",   icon: Box },
   Aptos:    { color: "from-emerald-400 to-green-500", bg: "bg-emerald-500/10", text: "text-emerald-400", icon: Globe },
   Canton:   { color: "from-teal-400 to-emerald-500", bg: "bg-teal-500/10", text: "text-teal-400", icon: Link2 },
+  BTC:      { color: "from-orange-500 to-amber-500", bg: "bg-orange-500/10", text: "text-orange-400", icon: Circle },
+  Other:    { color: "from-zinc-400 to-slate-500", bg: "bg-zinc-500/10", text: "text-zinc-400", icon: Circle },
 };
 
 const CATEGORIES = {
@@ -57,6 +59,8 @@ const CATEGORIES = {
   Mainnet:  { bg: "bg-emerald-500/10", text: "text-emerald-400", border: "border-emerald-500/20" },
   Staking:  { bg: "bg-blue-500/10",    text: "text-blue-400",    border: "border-blue-500/20" },
   DeFi:     { bg: "bg-purple-500/10",  text: "text-purple-400",  border: "border-purple-500/20" },
+  DePIN:    { bg: "bg-cyan-500/10",    text: "text-cyan-400",    border: "border-cyan-500/20" },
+  "Infrastructure / L2": { bg: "bg-rose-500/10", text: "text-rose-400", border: "border-rose-500/20" },
 };
 
 const PRIORITIES = {
@@ -373,8 +377,23 @@ export default function App() {
       .select('*')
       .order('created_at', { ascending: false });
     
-    if (error) console.log('Error fetching:', error);
-    else setProjects(data || []);
+    if (error) {
+      console.log('Error fetching:', error);
+    } else {
+      const today = new Date();
+      const enrichedData = (data || []).map(p => {
+        let completed_today = false;
+        if (p.task_done && p.updated_at) {
+          const updatedDate = new Date(p.updated_at);
+          completed_today = 
+            today.getDate() === updatedDate.getDate() &&
+            today.getMonth() === updatedDate.getMonth() &&
+            today.getFullYear() === updatedDate.getFullYear();
+        }
+        return { ...p, completed_today };
+      });
+      setProjects(enrichedData);
+    }
     setLoading(false);
   };
 
@@ -398,7 +417,7 @@ export default function App() {
 
   const totalCost = projects.reduce((s, p) => s + (p.cost || 0), 0);
   const highPriorityCount = projects.filter((p) => p.priority === "High").length;
-  const pendingTasks = projects.filter((p) => !p.task_done).length;
+  const pendingTasks = projects.filter((p) => !p.completed_today).length;
 
   /* ── Handlers ── */
   const handleSave = async () => await fetchProjects();
@@ -427,9 +446,14 @@ export default function App() {
 
   const toggleTaskDone = async (id, currentValue) => {
     setActionLoading((prev) => ({ ...prev, [id]: 'toggle' }));
+    
+    const nowISO = new Date().toISOString();
     const { error } = await supabase
       .from('airdrops')
-      .update({ task_done: !currentValue })
+      .update({ 
+        task_done: !currentValue,
+        updated_at: nowISO 
+      })
       .eq('id', id);
     if (error) {
       console.error('Gagal update task:', error.message);
@@ -598,25 +622,32 @@ export default function App() {
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
                           <button
-                            onClick={() => toggleTaskDone(p.id, p.task_done)}
+                            onClick={() => toggleTaskDone(p.id, p.completed_today)}
                             disabled={actionLoading[p.id] === 'toggle'}
                             className={`flex-shrink-0 rounded-md p-0.5 transition-all ${
-                              p.task_done
+                              p.completed_today
                                 ? "text-emerald-400 hover:text-emerald-300"
                                 : "text-zinc-500 hover:text-amber-400"
                             } disabled:opacity-50`}
-                            title={p.task_done ? "Mark as pending" : "Mark as done"}
+                            title={p.completed_today ? "Mark as pending" : "Mark as done"}
                           >
                             {actionLoading[p.id] === 'toggle' ? (
                               <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : p.task_done ? (
+                            ) : p.completed_today ? (
                               <CheckCircle2 className="h-4 w-4" />
                             ) : (
                               <Circle className="h-4 w-4" />
                             )}
                           </button>
-                          {p.task_done ? (
-                            <span className="text-emerald-400 font-medium text-xs">Completed Today ✓</span>
+                          {p.completed_today ? (
+                            <div className="flex flex-col">
+                              <span className="text-emerald-400 font-medium text-xs">Completed Today ✓</span>
+                              {p.updated_at && (
+                                <span className="text-[10px] text-zinc-500 mt-0.5">
+                                  Checked at {new Date(p.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                              )}
+                            </div>
                           ) : (
                             <span className="text-zinc-300">
                               {p.next_task || p.nextTask || '-'}
