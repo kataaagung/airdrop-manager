@@ -17,15 +17,24 @@ jobs:
         with:
           host: 49.51.69.152
           username: root
-          # Kita akan setting secret ini di GitHub sebentar lagi
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          # Tambahkan ini agar tidak ditolak GitHub karena fingerprint
+          fingerprint: ${{ secrets.SSH_FINGERPRINT }} 
+          # ATAU tambahkan baris ini jika tidak ingin ribet dengan fingerprint (kurang aman tapi manjur):
+          # debug: true
           script: |
             cd /home/gunggg-airdrop/htdocs/airdrop.gunggg.online
-            git pull origin main
-            # Hapus folder dist lama jika ada
-            rm -rf dist
-            # Jalankan build (pastikan Node.js sudah terinstall di VPS)
-            npm install
+            git fetch --all
+            git reset --hard origin/main
+            
+            # Gunakan --legacy-peer-deps untuk mengabaikan bentrok versi Tailwind/Vite
+            npm install --legacy-peer-deps
+            
+            # Jalankan build
             npm run build
-            # Pindahkan hasil build ke folder htdocs utama
+            
+            # Hapus file index.html lama bawaan CloudPanel jika masih ada
+            rm -f index.html
+            
+            # Pindahkan hasil build
             cp -r dist/* .
